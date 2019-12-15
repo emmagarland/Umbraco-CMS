@@ -28,7 +28,14 @@ angular.module("umbraco")
             $scope.containerOverflow = editorConfig.mode === "distraction-free" ? (height ? "auto" : "inherit") : "inherit";
 
             var promises = [];
-
+            
+            // we need to make sure that the element is initialized before we can init TinyMCE, because we find the placeholder by ID, so it needs to be appended to document before.
+            var initPromise = $q((resolve, reject) => {
+                this.$onInit = resolve;
+            });
+            
+            promises.push(initPromise);
+            
             //queue file loading
             tinyMceAssets.forEach(function (tinyJsAsset) {
                 promises.push(assetsService.loadJs(tinyJsAsset, $scope));
@@ -77,19 +84,26 @@ angular.module("umbraco")
                         model: $scope.model,
                         currentForm: angularHelper.getCurrentForm($scope)
                     });
-    
+                    
                 };
-
+                
                 angular.extend(baseLineConfigObj, standardConfig);
-                /** Loads in the editor */
-                tinymce.init(baseLineConfigObj);
-
+                
+                // We need to wait for DOM to have rendered before we can find the element by ID.
+                $timeout(function () {
+                    tinymce.init(baseLineConfigObj);
+                }, 150);
+                
                 //listen for formSubmitting event (the result is callback used to remove the event subscription)
                 var unsubscribe = $scope.$on("formSubmitting", function () {
                     if (tinyMceEditor !== undefined && tinyMceEditor != null && !$scope.isLoading) {
                         $scope.model.value = tinyMceEditor.getContent();
                     }
                 });
+
+                $scope.focus = function () {
+                    tinyMceEditor.focus();
+                }
 
                 //when the element is disposed we need to unsubscribe!
                 // NOTE: this is very important otherwise if this is part of a modal, the listener still exists because the dom
